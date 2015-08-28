@@ -153,84 +153,71 @@ Priority(priorityLevel);
 
 %% Going through the trials.
 
+% Screen('CloseAll'); %temp
+
 for curTrial=1:numofTrials
     %% Drawing the gratings for this trial.
     curCond = trialCond(curTrial);
     display('=====');
     display(sprintf('current trial: %3i', curTrial));
     display(sprintf('current condition: %i', curCond));
-
+    
+    % The number of frames for rendering and presentation:
     numFrames = round(c2n(condTable,'tL',curCond) / 1000 * frameRate);
     
-    % Preparing the stimulus configurations based on the trial:
-    sizeL = round(cm2px(c2n(condTable,'sizeL',curCond), sdims));
-    dirL = c2n(condTable,'dirL',curCond)*pi/180;
-    sfL = px2cm (c2n(condTable,'sfL',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
-    distL = c2n(condTable,'speedR',curCond) * (numFrames/frameRate);
-    display(sprintf('left stim size (px): %.2f', sizeL));
-    display(sprintf('left orientation/direction (deg) = %i', dirL));
-    display(sprintf('left spatial frequency (cy/px) = %0.4f', sfL));
-    sizeR = round(cm2px(c2n(condTable,'sizeR',curCond), sdims));
-    dirR = c2n(condTable,'dirR',curCond)*pi/180;
-    sfR = px2cm (c2n(condTable,'sfR',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
-    distR = cm2px(c2n(condTable,'speedR',curCond), sdims) * (numFrames/frameRate);
-    display(sprintf('right stim size (px): %.2f', sizeR));
-    display(sprintf('right orientation/direction (deg) = %i', dirR));
-    display(sprintf('right spatial frequency (cy/px)= %0.1f', sfR));
+    % Random starting phase:
+    randStartPhase = rand(1);
     
+    % Preparing the stimulus configurations based on the trial:
+    sizeL = c2n(condTable,'sizeL',curCond);
+    dirL = c2n(condTable,'dirL',curCond);
+    sfL = c2n(condTable,'sfL',curCond);
+%     speedL = c2n(condTable,'speedL',curCond) * (numFrames/frameRate);
+    speedL = c2n(condTable,'speedL',curCond);
+    display(sprintf('left stim size (px): %i', sizeL));
+    display(sprintf('left orientation/direction (deg) = %i', dirL));
+    display(sprintf('left spatial frequency (cy/px) = %i', sfL));
+    sizeR = c2n(condTable,'sizeL',curCond);
+    dirR = c2n(condTable,'dirR',curCond);
+    sfR = c2n(condTable,'sfR',curCond);
+    speedR = c2n(condTable,'speedR',curCond);
+    display(sprintf('right stim size (cm): %i', sizeR));
+    display(sprintf('right orientation/direction (deg) = %i', dirR));
+    display(sprintf('right spatial frequency (cpd)= %i', sfR));
+    % Modifying configs into the right dimensions:
+    dirL = dirL*pi/180;
+    dirR = dirR*pi/180;
+    sfL = px2cm(sfL, sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
+    sfR = px2cm(sfR, sdims)*2*pi;
+    sizeL = round(cm2px(sizeL, sdims));
+    sizeR = round(cm2px(sizeR, sdims));
+    
+    %% Rendering the gratings:
     for i = 1:numFrames
-        %% Drawing the left grating.
-        phaseL = (i/numFrames)*2*pi*distL;
-        [x,y] = meshgrid(-sizeL:sizeL, -sizeL:sizeL);
-        a = cos(dirL) * sfL;
-        b = sin(dirL) * sfL;
-        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(a*x+b*y+phaseL);
-        % multiplying by a function window (for black surround & artefact reduction):
-        [r, c] = size(m);
-        wc = window(@nuttallwin,c); % TODO: nuttallwin or flattopwin?
-        wr = window(@nuttallwin,r);
-        [maskr,maskc] = meshgrid(wr,wc);
-        ftwindow = maskr.*maskc;
-        ftwindow(ftwindow<0)=0; % not really needed with nuttallwin
+        % Drawing the left grating.
+        phaseL = ((i/numFrames)+randStartPhase)*2*pi*speedL*sfL;
+        m = renderGrating(sizeL, dirL, sfL, phaseL);
+        ftwindow = renderWindow(m);
         gratL(i) = Screen('MakeTexture', wPtr, ftwindow.*(gray+inc*m) ); %#ok<AGROW>
-        %% Preparing the right grating.
-        phaseR = (i/numFrames)*2*pi*distR;
-        [x,y] = meshgrid(-sizeR:sizeR, -sizeR:sizeR);
-        a = cos(dirR) * sfR;
-        b = sin(dirR) * sfR;
-        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(-a*x+b*y+phaseR);
-        % multiplying by a function window for black surround & artefact reduction):
-        [r, c] = size(m);
-        wc = window(@nuttallwin,c); % TODO: nuttallwin or flattopwin?
-        wr = window(@nuttallwin,r);
-        [maskr,maskc] = meshgrid(wr,wc);
-        ftwindow = maskr.*maskc;
-        ftwindow(ftwindow<0)=0; % not really needed with nuttallwin
+        % Preparing the right grating.
+        phaseR = ((i/numFrames)+randStartPhase)*2*pi*speedR*sfR;
+        m = renderGrating(sizeR, dirR, sfR, phaseR);
+        ftwindow = renderWindow(m);
         gratR(i) = Screen('MakeTexture', wPtr, ftwindow.*(gray+inc*m) ); %#ok<AGROW>
     end
 
     %% Animation loop.
 
-    % Convert movieDuration in seconds to duration in frames to draw:
-    %TEMP; should be div/1000
-    % stimDur_frames=round(condTable.tL(curTrial) / 100 * frameRate);
-    stimDur_frames=numFrames;
-    stimFrameIndcs=mod(0:(stimDur_frames-1), numFrames) + 1;
-    
-    % Random starting phase:
-    randStartPhase = randi(stimDur_frames);
-    frameSet = [randStartPhase:stimDur_frames 1:randStartPhase-1];
-
-    for i=frameSet
+    for i=1:numFrames %frameSet
         % Draw the left image:
         boxMulti = 1.8;
-        Screen('DrawTexture', wPtr, gratL(stimFrameIndcs(i)), [], ...
+        Screen('DrawTexture', wPtr, gratL(i), [], ...
             [disp.centX(1)-disp.boxSize*boxMulti disp.centY-disp.boxSize*boxMulti ...
             disp.centX(1)+disp.boxSize*boxMulti disp.centY+disp.boxSize*boxMulti]);
         drawFixationBox(wPtr, disp.centX(1), disp.centY, disp.boxSize, ...
             disp.boxColour);
         % Draw the right image:
-        Screen('DrawTexture', wPtr, gratR(stimFrameIndcs(i)), [], ...
+        Screen('DrawTexture', wPtr, gratR(i), [], ...
             [disp.centX(2)-disp.boxSize*boxMulti disp.centY-disp.boxSize*boxMulti ...
             disp.centX(2)+disp.boxSize*boxMulti disp.centY+disp.boxSize*boxMulti]);
         drawFixationBox(wPtr, disp.centX(2), disp.centY, disp.boxSize, ...
