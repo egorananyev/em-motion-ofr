@@ -6,7 +6,7 @@ function em
 subj = 1001;
 domEye = 0; % 0=right, 1=left
 condFileName = 'cond01';
-
+ 
 % Keyboard:
 KbName('UnifyKeyNames');
 quitkey = 'c';
@@ -34,7 +34,7 @@ textNextTrial = 'Press spacebar to continue';
 %% Preparing PsychToolBox and screen.
 
 % Prepping PsychToolBox:
-% Screen('Preference', 'SkipSyncTests', 1); % a necessary evil
+Screen('Preference', 'SkipSyncTests', 1); % a necessary evil
 
 AssertOpenGL; % for 3D rendering 
 screenid = max(Screen('Screens'));
@@ -156,45 +156,54 @@ Priority(priorityLevel);
 for curTrial=1:numofTrials
     %% Drawing the gratings for this trial.
     curCond = trialCond(curTrial);
+    display('=====');
+    display(sprintf('current trial: %3i', curTrial));
+    display(sprintf('current condition: %i', curCond));
 
-    % Compute each frame of the movie and convert the those frames, stored in
-    % MATLAB matices, into Psychtoolbox OpenGL textures using 'MakeTexture';
     numFrames = round(c2n(condTable,'tL',curCond) / 1000 * frameRate);
-%     round( ((1/c2n(condTable,'sfL',curTrial))/ ...
-%         c2n(condTable,'speedL',curTrial)) * frameRate );
-
+    
+    % Preparing the stimulus configurations based on the trial:
+    sizeL = round(cm2px(c2n(condTable,'sizeL',curCond), sdims));
+    dirL = c2n(condTable,'dirL',curCond)*pi/180;
+    sfL = px2cm (c2n(condTable,'sfL',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
+    distL = c2n(condTable,'speedR',curCond) * (numFrames/frameRate);
+    display(sprintf('left stim size (px): %.2f', sizeL));
+    display(sprintf('left orientation/direction (deg) = %i', dirL));
+    display(sprintf('left spatial frequency (cy/px) = %0.4f', sfL));
+    sizeR = round(cm2px(c2n(condTable,'sizeR',curCond), sdims));
+    dirR = c2n(condTable,'dirR',curCond)*pi/180;
+    sfR = px2cm (c2n(condTable,'sfR',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
+    distR = cm2px(c2n(condTable,'speedR',curCond), sdims) * (numFrames/frameRate);
+    display(sprintf('right stim size (px): %.2f', sizeR));
+    display(sprintf('right orientation/direction (deg) = %i', dirR));
+    display(sprintf('right spatial frequency (cy/px)= %0.1f', sfR));
+    
     for i = 1:numFrames
         %% Drawing the left grating.
-        phase = (i/numFrames)*2*pi; % this is the same for both eyes
-        stimsz = round(cm2px(c2n(condTable,'sizeL',curCond), sdims));
-        [x,y] = meshgrid(-stimsz:stimsz, -stimsz:stimsz);
-        angle = c2n(condTable,'dirL',curCond)*pi/180;
-        f = px2cm (c2n(condTable,'sfL',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
-        a = cos(angle) * f;
-        b = sin(angle) * f;
-        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(a*x+b*y+phase);
-        % multiplying by a flat top window (for black surround & artefact
-        % reduction):
+        phaseL = (i/numFrames)*2*pi*distL;
+        [x,y] = meshgrid(-sizeL:sizeL, -sizeL:sizeL);
+        a = cos(dirL) * sfL;
+        b = sin(dirL) * sfL;
+        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(a*x+b*y+phaseL);
+        % multiplying by a function window (for black surround & artefact reduction):
         [r, c] = size(m);
-        wc = window(@flattopwin, c); % TODO: nuttallwin or flattopwin?
-        wr = window(@flattopwin, r);
-        [maskr,maskc]=meshgrid(wr,wc);
+        wc = window(@nuttallwin,c); % TODO: nuttallwin or flattopwin?
+        wr = window(@nuttallwin,r);
+        [maskr,maskc] = meshgrid(wr,wc);
         ftwindow = maskr.*maskc;
         ftwindow(ftwindow<0)=0; % not really needed with nuttallwin
         gratL(i) = Screen('MakeTexture', wPtr, ftwindow.*(gray+inc*m) ); %#ok<AGROW>
         %% Preparing the right grating.
-        stimsz = round(cm2px(c2n(condTable,'sizeR',curCond), sdims));
-        [x,y] = meshgrid(-stimsz:stimsz, -stimsz:stimsz);
-        angle = c2n(condTable,'dirR',curCond)*pi/180;
-        f = px2cm (c2n(condTable,'sfR',curCond), sdims)*2*pi; % 0.0142 cy/px = .5 cy/cm
-        a = cos(angle) * f;
-        b = sin(angle) * f;
-        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(-a*x+b*y+phase);
+        phaseR = (i/numFrames)*2*pi*distR;
+        [x,y] = meshgrid(-sizeR:sizeR, -sizeR:sizeR);
+        a = cos(dirR) * sfR;
+        b = sin(dirR) * sfR;
+        m = exp(-((x/90).^2)-((y/90).^2)) .* sin(-a*x+b*y+phaseR);
         % multiplying by a function window for black surround & artefact reduction):
         [r, c] = size(m);
-        wc = window(@flattopwin, c); % TODO: nuttallwin or flattopwin?
-        wr = window(@flattopwin, r);
-        [maskr,maskc]=meshgrid(wr,wc);
+        wc = window(@nuttallwin,c); % TODO: nuttallwin or flattopwin?
+        wr = window(@nuttallwin,r);
+        [maskr,maskc] = meshgrid(wr,wc);
         ftwindow = maskr.*maskc;
         ftwindow(ftwindow<0)=0; % not really needed with nuttallwin
         gratR(i) = Screen('MakeTexture', wPtr, ftwindow.*(gray+inc*m) ); %#ok<AGROW>
@@ -214,7 +223,7 @@ for curTrial=1:numofTrials
 
     for i=frameSet
         % Draw the left image:
-        boxMulti = 2.2;
+        boxMulti = 1.8;
         Screen('DrawTexture', wPtr, gratL(stimFrameIndcs(i)), [], ...
             [disp.centX(1)-disp.boxSize*boxMulti disp.centY-disp.boxSize*boxMulti ...
             disp.centX(1)+disp.boxSize*boxMulti disp.centY+disp.boxSize*boxMulti]);
